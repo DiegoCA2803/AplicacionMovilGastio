@@ -1,0 +1,991 @@
+{
+  "info": {
+    "_postman_id": "0a651e65-eecf-42ca-bed4-5d58b6b1a94e",
+    "name": "GEUS Gas Detection System API",
+    "description": "Colección completa de endpoints para el Sistema de Detección de Gas GEUS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "40668026",
+    "_collection_link": "https://go.postman.co/collection/40668026-0a651e65-eecf-42ca-bed4-5d58b6b1a94e?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Verifica el estado básico de la API"
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Verifica que todos los servicios dependientes estén disponibles (DB, RabbitMQ, MQTT, InfluxDB)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', jsonData.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@geus.test\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Autenticación de usuario. Credenciales de prueba:\n- admin@geus.test / password\n- operator@geus.test / password\n- viewer@geus.test / password"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"your_refresh_token_here\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Renovar el token de acceso usando el refresh token"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Obtener información del usuario autenticado"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sensors",
+      "item": [
+        {
+          "name": "List Sensors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sensors?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sensors"
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Listar todos los sensores con paginación"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sensor Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sensors/{{sensor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sensors",
+                "{{sensor_id}}"
+              ]
+            },
+            "description": "Obtener detalles completos de un sensor incluyendo válvula y disipador"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sensor Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sensors/{{sensor_id}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sensors",
+                "{{sensor_id}}",
+                "health"
+              ]
+            },
+            "description": "Verificar el estado de salud de un sensor específico"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current Reading",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sensors/{{sensor_id}}/current",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sensors",
+                "{{sensor_id}}",
+                "current"
+              ]
+            },
+            "description": "Obtener la lectura más reciente de un sensor desde InfluxDB"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Readings History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sensors/{{sensor_id}}/readings?start=2026-05-01T00:00:00Z&end=2026-05-13T23:59:59Z&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sensors",
+                "{{sensor_id}}",
+                "readings"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-05-01T00:00:00Z",
+                  "description": "Fecha inicio (ISO 8601)"
+                },
+                {
+                  "key": "end",
+                  "value": "2026-05-13T23:59:59Z",
+                  "description": "Fecha fin (ISO 8601)"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Obtener historial de lecturas de un sensor en un rango de fechas"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Sensor Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/sensors/{{sensor_id}}/stats?period=24h",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "sensors",
+                "{{sensor_id}}",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "24h",
+                  "description": "Período: 1h, 6h, 24h, 7d, 30d"
+                }
+              ]
+            },
+            "description": "Obtener estadísticas agregadas de un sensor (min, max, avg)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "List Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/alerts?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "status_filter",
+                  "value": "active",
+                  "description": "active, acknowledged, resolved",
+                  "disabled": true
+                },
+                {
+                  "key": "severity",
+                  "value": "critical",
+                  "description": "warning, critical",
+                  "disabled": true
+                },
+                {
+                  "key": "sensor_id",
+                  "value": "{{sensor_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Listar alertas con filtros opcionales por estado, severidad y sensor"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alert Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/alerts/{{alert_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "{{alert_id}}"
+              ]
+            },
+            "description": "Obtener detalles de una alerta específica"
+          },
+          "response": []
+        },
+        {
+          "name": "Acknowledge Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts/{{alert_id}}/acknowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "{{alert_id}}",
+                "acknowledge"
+              ]
+            },
+            "description": "Reconocer una alerta (requiere autenticación)"
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts/{{alert_id}}/resolve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "{{alert_id}}",
+                "resolve"
+              ]
+            },
+            "description": "Resolver una alerta (requiere autenticación)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Commands",
+      "item": [
+        {
+          "name": "Panic Button",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/commands/panic/{{sensor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commands",
+                "panic",
+                "{{sensor_id}}"
+              ]
+            },
+            "description": "Activar botón de pánico: cierra válvula y activa disipador"
+          },
+          "response": []
+        },
+        {
+          "name": "Activate Test Mode",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/commands/test-mode/{{sensor_id}}?timeout_minutes=30",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commands",
+                "test-mode",
+                "{{sensor_id}}"
+              ],
+              "query": [
+                {
+                  "key": "timeout_minutes",
+                  "value": "30",
+                  "description": "Duración del modo test en minutos"
+                }
+              ]
+            },
+            "description": "Activar modo de prueba en un sensor"
+          },
+          "response": []
+        },
+        {
+          "name": "Control Dissipator - ON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"command\": \"on\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/commands/dissipator/{{sensor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commands",
+                "dissipator",
+                "{{sensor_id}}"
+              ]
+            },
+            "description": "Encender el disipador de un sensor"
+          },
+          "response": []
+        },
+        {
+          "name": "Control Dissipator - OFF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"command\": \"off\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/commands/dissipator/{{sensor_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "commands",
+                "dissipator",
+                "{{sensor_id}}"
+              ]
+            },
+            "description": "Apagar el disipador de un sensor"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Listar usuarios (requiere rol admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Obtener detalles de un usuario (requiere rol admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@geus.test\",\n  \"password\": \"securepassword\",\n  \"name\": \"New User\",\n  \"role\": \"operator\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Crear un nuevo usuario (requiere rol admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"role\": \"operator\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Actualizar un usuario (requiere rol admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Eliminar un usuario (requiere rol admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Sensors to User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sensor_ids\": [\n    \"11111111-1111-1111-1111-111111111111\",\n    \"22222222-2222-2222-2222-222222222222\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}/sensors",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}",
+                "sensors"
+              ]
+            },
+            "description": "Asignar sensores a un usuario (requiere rol admin)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Configuration",
+      "item": [
+        {
+          "name": "Get All Config",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/config",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "config"
+              ]
+            },
+            "description": "Obtener toda la configuración global (requiere rol admin)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Config by Key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/config/gas_threshold_warning",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "config",
+                "gas_threshold_warning"
+              ]
+            },
+            "description": "Obtener un valor de configuración específico"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"250\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/config/gas_threshold_warning",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "config",
+                "gas_threshold_warning"
+              ]
+            },
+            "description": "Actualizar un valor de configuración (requiere rol admin)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "Get Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit/logs?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit",
+                "logs"
+              ],
+              "query": [
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "action_type",
+                  "value": "login",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "2026-05-01",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-05-13",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Obtener logs de auditoría (requiere permiso VIEW_AUDIT)"
+          },
+          "response": []
+        },
+        {
+          "name": "Export Audit Data",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit/export?start_date=2026-05-01&end_date=2026-05-13&format=csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2026-05-01"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2026-05-13"
+                },
+                {
+                  "key": "format",
+                  "value": "csv",
+                  "description": "csv o json"
+                }
+              ]
+            },
+            "description": "Exportar datos de auditoría (requiere permiso EXPORT_DATA)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Security Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit/security?days=7",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "audit",
+                "security"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "7",
+                  "description": "Días a analizar (1-90)"
+                }
+              ]
+            },
+            "description": "Obtener métricas de seguridad (requiere permiso VIEW_AUDIT)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "sensor_id",
+      "value": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "key": "alert_id",
+      "value": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    },
+    {
+      "key": "user_id",
+      "value": "a1111111-1111-1111-1111-111111111111"
+    }
+  ]
+}
