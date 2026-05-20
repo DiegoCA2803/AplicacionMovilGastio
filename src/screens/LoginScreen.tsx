@@ -69,7 +69,7 @@ export default function LoginScreen() {
         <View style={styles.logoContainer}>
           <View style={styles.logoDot} />
           <Text style={styles.title}>Gastio<Text style={styles.titleHighlight}>.OS</Text></Text>
-          <Text style={styles.subtitle}>Sistema Inteligente de Detección</Text>
+          <Text style={styles.subtitle}>SISTEMA DE DETECCIÓN</Text>
         </View>
 
         <View style={styles.formContainer}>
@@ -126,7 +126,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F1115',
+    backgroundColor: '#000000',
   },
   content: {
     flex: 1,
@@ -138,34 +138,34 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logoDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 2,
-    backgroundColor: '#3B82F6',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
     marginBottom: 16,
   },
   title: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
   },
   titleHighlight: {
-    color: '#3B82F6',
+    color: colors.primary,
   },
   subtitle: {
-    fontSize: 12,
-    color: '#8A94A6',
+    fontSize: 10,
+    color: '#666666',
     marginTop: 8,
-    letterSpacing: 1,
+    letterSpacing: 2,
     textTransform: 'uppercase',
   },
   formContainer: {
-    backgroundColor: '#14171C',
+    backgroundColor: '#0A0A0A',
     padding: 24,
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#1A1D24',
+    borderColor: '#111111',
   },
   errorText: {
     color: '#EF4444',
@@ -178,36 +178,34 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    color: '#8A94A6',
-    fontSize: 11,
+    color: '#666666',
+    fontSize: 10,
     fontWeight: '600',
     marginBottom: 8,
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   input: {
-    backgroundColor: '#1A1D24',
-    height: 48,
-    borderRadius: 6,
+    backgroundColor: '#000000',
+    height: 50,
+    borderRadius: 8,
     paddingHorizontal: 16,
-    color: '#E2E8F0',
+    color: '#FFFFFF',
     fontSize: 15,
     borderWidth: 1,
-    borderColor: '#2A2E37',
+    borderColor: '#111111',
   },
   button: {
-    backgroundColor: '#3B82F6',
-    height: 48,
-    borderRadius: 6,
+    backgroundColor: colors.primary,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#2563EB',
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '800',
     letterSpacing: 1,
   },
   footer: {
@@ -215,8 +213,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   footerText: {
-    color: '#8A94A6',
-    fontSize: 11,
-    letterSpacing: 0.5,
+    color: '#666666',
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
 });

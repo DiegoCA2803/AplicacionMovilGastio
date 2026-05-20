@@ -276,8 +276,8 @@ export default function DashboardScreen() {
               style={[
                 styles.toggleButton, 
                 { 
-                  backgroundColor: store.fanOn ? '#3B82F6' : 'transparent',
-                  borderColor: store.fanOn ? '#2563EB' : '#334155'
+                  backgroundColor: store.fanOn ? colors.primary : 'transparent',
+                  borderColor: store.fanOn ? colors.primary : '#334155'
                 },
                 (store.isAlertActive || !store.isConnected) && styles.buttonDisabled
               ]}
@@ -333,8 +333,8 @@ export default function DashboardScreen() {
                       <Svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
                         <Defs>
                           <LinearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
-                            <Stop offset="0" stopColor="#3B82F6" stopOpacity="0.4" />
-                            <Stop offset="1" stopColor="#3B82F6" stopOpacity="0.0" />
+                            <Stop offset="0" stopColor={colors.primary} stopOpacity="0.3" />
+                            <Stop offset="1" stopColor={colors.primary} stopOpacity="0.0" />
                           </LinearGradient>
                         </Defs>
                         
@@ -343,16 +343,16 @@ export default function DashboardScreen() {
                           <Path 
                             key={`grid-${i}`}
                             d={`M 0 ${height - padding - ratio * (height - padding * 2)} L ${width} ${height - padding - ratio * (height - padding * 2)}`} 
-                            stroke="#1A1D24" 
+                            stroke="#111111" 
                             strokeWidth="1" 
                           />
                         ))}
 
                         <Polygon points={areaData.replace(/M|L|Z/g, '')} fill="url(#gradient)" />
-                        <Path d={pathData} fill="none" stroke="#3B82F6" strokeWidth="3" />
+                        <Path d={pathData} fill="none" stroke={colors.primary} strokeWidth="2" />
                         
                         {points.map((p, i) => (
-                          <Circle key={i} cx={p.x} cy={p.y} r="4" fill="#0F1115" stroke="#3B82F6" strokeWidth="2" />
+                          <Circle key={i} cx={p.x} cy={p.y} r="3" fill="#000000" stroke={colors.primary} strokeWidth="2" />
                         ))}
                       </Svg>
                     </View>
@@ -360,8 +360,8 @@ export default function DashboardScreen() {
                 );
               })()}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingLeft: 35 }}>
-                <Text style={{ color: '#8A94A6', fontSize: 10 }}>-20 seg</Text>
-                <Text style={{ color: '#3B82F6', fontSize: 10, fontWeight: '700' }}>AHORA</Text>
+                <Text style={{ color: '#666666', fontSize: 10 }}>-20 seg</Text>
+                <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '600' }}>AHORA</Text>
               </View>
             </View>
           )}
@@ -388,7 +388,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F1115', // Más oscuro, industrial
+    backgroundColor: '#000000', 
   },
   header: {
     flexDirection: 'row',
@@ -396,20 +396,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1A1D24',
-    backgroundColor: '#14171C',
+    backgroundColor: '#000000',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 10,
-    color: '#8A94A6',
-    fontWeight: '600',
+    color: '#666666',
+    fontWeight: '500',
     letterSpacing: 1,
     marginTop: 2,
   },
@@ -428,59 +426,52 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#EF4444',
   },
   statusRow: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#14171C',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#1A1D24',
     alignSelf: 'flex-start',
   },
   statusBadgeOffline: {
-    backgroundColor: '#1A1D24',
-    borderColor: '#2A2E37',
+    opacity: 0.6,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     marginRight: 8,
   },
   statusText: {
-    fontSize: 11,
-    color: '#E2E8F0',
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    color: '#999999',
+    fontWeight: '500',
+    letterSpacing: 1,
   },
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: '#14171C',
-    borderRadius: 8,
+    backgroundColor: '#0A0A0A',
+    borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#1A1D24',
+    borderColor: '#111111',
   },
   cardTitle: {
-    fontSize: 12,
-    color: '#8A94A6',
+    fontSize: 10,
+    color: '#666666',
     fontWeight: '600',
-    letterSpacing: 1,
-    marginBottom: 12,
+    letterSpacing: 1.5,
+    marginBottom: 8,
   },
   gasIndicatorContainer: {
     flexDirection: 'row',
@@ -496,35 +487,35 @@ const styles = StyleSheet.create({
   },
   gasUnit: {
     fontSize: 16,
-    color: '#8A94A6',
-    fontWeight: '600',
+    color: '#666666',
+    fontWeight: '500',
     marginLeft: 8,
   },
   barBackground: {
-    height: 4,
-    backgroundColor: '#1A1D24',
-    borderRadius: 2,
+    height: 2,
+    backgroundColor: '#111111',
+    borderRadius: 1,
     overflow: 'hidden',
     marginBottom: 12,
   },
   barFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 1,
   },
   statusLabel: {
-    fontSize: 11,
-    color: '#8A94A6',
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    color: '#666666',
+    fontWeight: '500',
+    letterSpacing: 1,
   },
   sectionTitle: {
-    fontSize: 12,
-    color: '#8A94A6',
+    fontSize: 10,
+    color: '#666666',
     fontWeight: '600',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
     marginBottom: 12,
-    marginTop: 8,
+    marginTop: 16,
+    paddingLeft: 4,
   },
   controlRow: {
     flexDirection: 'row',
@@ -536,31 +527,30 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   controlTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#E2E8F0',
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   controlSubtitle: {
-    fontSize: 12,
-    color: '#8A94A6',
+    fontSize: 11,
+    color: '#666666',
   },
   toggleButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 6,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    minWidth: 100,
-    borderWidth: 1,
+    minWidth: 90,
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   toggleButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.5,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   alertOverlay: {
     ...StyleSheet.absoluteFillObject,
