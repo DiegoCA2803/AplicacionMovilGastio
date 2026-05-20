@@ -40,23 +40,24 @@ export const useAppStore = create<AppState>((set) => ({
   setConnectionStatus: (status) => set({ isConnected: status }),
   
   updateSensorData: (data) => set((state) => {
-    // Evaluamos alertas
+    // Evaluamos alertas según los nuevos umbrales
     let newAlertLevel: 'none' | 'dangerous' | 'critical' = 'none';
-    if (data.gasPpm > 500) newAlertLevel = 'critical';
-    else if (data.gasPpm >= 200) newAlertLevel = 'dangerous';
+    if (data.gasPpm >= 1300) {
+      newAlertLevel = 'critical';
+    } else if (data.gasPpm >= 1000) {
+      newAlertLevel = 'dangerous'; // Nivel medio, sin riesgo crítico
+    }
 
-    const isAlertActive = newAlertLevel !== 'none';
+    // Solo activamos las alarmas rojas y bloqueos de actuadores en nivel crítico
+    const isAlertActive = newAlertLevel === 'critical';
 
-    // Lógica local: si hay alerta, el ventilador debe estar encendido y no se puede apagar manualmente.
-    // La válvula se cierra si es crítico (>500)
+    // Lógica local: si hay alerta crítica, el ventilador debe estar encendido y no se puede apagar manualmente.
+    // La válvula se cierra si es crítico (>1300)
     let newFanOn = state.fanOn;
     let newValveOpen = state.valveOpen;
 
     if (isAlertActive) {
       newFanOn = true; // Auto encendido FR-016
-    }
-    
-    if (newAlertLevel === 'critical') {
       newValveOpen = false; // Auto cierre FR-002
     }
 

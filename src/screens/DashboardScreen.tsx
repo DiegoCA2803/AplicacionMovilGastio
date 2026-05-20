@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,46 +8,93 @@ import {
   StatusBar,
   Animated,
   Alert,
+  Platform
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path, Circle, Defs, LinearGradient, Stop, Polygon } from 'react-native-svg';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
-import api from '../services/api';
+import { sensorService } from '../services/sensorService';
+import { commandService } from '../services/commandService';
+import { dateFormatter } from '../utils/dateFormatter';
 
-// Sensor ID por defecto para el MVP
-const SENSOR_ID = '1';
+// Este ID se obtendrá dinámicamente de la API
+let SENSOR_ID = '';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const store = useAppStore();
   const alertAnim = React.useRef(new Animated.Value(0)).current;
+  const [readingsHistory, setReadingsHistory] = useState<any[]>([]);
 
   const fetchSensorData = useCallback(async () => {
     try {
-      // 1. Verificamos la salud de la API (si está corriendo)
-      const healthResponse = await api.get('/health');
-      if (healthResponse.data?.status === 'healthy') {
-        store.setConnectionStatus(true);
+      // 0. Si no tenemos el SENSOR_ID, lo buscamos de la lista
+      if (!SENSOR_ID) {
+        const sensors = await sensorService.getSensors();
+        if (sensors && sensors.length > 0) {
+          SENSOR_ID = sensors[0].id;
+        } else {
+          store.setConnectionStatus(false);
+          return;
+        }
       }
 
+      let isActuallyConnected = false;
+
+      // 1. Verificamos la salud del sensor
+      try {
+        const healthResponse = await sensorService.getHealth(SENSOR_ID);
+        if (healthResponse?.health_status) {
+          isActuallyConnected = healthResponse.diagnostics?.mqtt_connected ?? true;
+        }
+      } catch (healthError) {
+         isActuallyConnected = false;
+      }
+
+      // Evitamos actualizaciones de estado si ya sabíamos que estaba desconectado y falló la API
+      // Pero si falla solo la conexión MQTT, igual queremos traer el historial.
+      
       // 2. Intentamos obtener los datos del sensor
       try {
-        const response = await api.get(`/api/v1/sensors/${SENSOR_ID}/current`);
-        if (response.data) {
+        const data = await sensorService.getCurrentReading(SENSOR_ID);
+        if (data && data.reading) {
           store.updateSensorData({
-            gasPpm: response.data.gas || response.data.gas_ppm || 0,
-            temperature: 0,
-            humidity: 0,
+            gasPpm: data.reading.gas_ppm || 0,
+            temperature: data.reading.temperature_c || 0,
+            humidity: data.reading.humidity_percent || 0,
           });
         }
       } catch (sensorError) {
-        // Si la API responde pero el sensor aún no tiene datos (ej. un 404 Not Found),
-        // mantenemos el estado de conexión como TRUE, porque sí hay comunicación con la API.
+        // Ignoramos si no hay lectura actual
       }
+
+      // 3. Obtenemos el historial de lecturas y forzamos la actualización
+      try {
+        const historyData = await sensorService.getReadingsHistory(SENSOR_ID, 10);
+        if (historyData && historyData.readings && historyData.readings.length > 0) {
+          setReadingsHistory(historyData.readings.reverse()); // Reverse para que el último dato quede a la derecha del gráfico
+          
+          // Si el endpoint de current falló, tomamos el valor del historial más reciente
+          const latest = historyData.readings[historyData.readings.length - 1];
+          if (latest) {
+            store.updateSensorData({
+              gasPpm: latest.gas_ppm || latest.gas || 0,
+              temperature: latest.temperature_c || 0,
+              humidity: latest.humidity_percent || 0,
+            });
+          }
+        }
+      } catch (historyError) {
+        // Silencioso si falla el historial
+      }
+
+      // 4. Actualizamos el estado de conexión al final para evitar parpadeos visuales (flickering)
+      store.setConnectionStatus(isActuallyConnected);
+
     } catch (error) {
-      // Solo marcamos como desconectado si el servidor no responde en absoluto
-      store.setConnectionStatus(false);
+      // Ignorar para no bloquear la UI
     }
   }, [store]);
 
@@ -55,7 +102,7 @@ export default function DashboardScreen() {
     fetchSensorData(); 
     const interval = setInterval(() => {
       fetchSensorData();
-    }, 3000); 
+    }, 2000); 
     
     return () => clearInterval(interval);
   }, [fetchSensorData]);
@@ -77,15 +124,18 @@ export default function DashboardScreen() {
   const handleToggleValve = async () => {
     try {
       if (store.valveOpen) {
-        // Cerrar válvula (Panic Button endpoint en el backend)
-        await api.post(`/api/v1/commands/panic/${SENSOR_ID}`);
+        // Cerrar válvula
+        await commandService.cerrarValvula(SENSOR_ID);
+        store.toggleValve();
       } else {
-        // Abrir válvula (Asumiendo un endpoint futuro o similar para abrir)
-        // Como el backend actualmente solo tiene /panic para cerrar, simularemos la petición
-        // a un endpoint de válvula genérico.
-        await api.post(`/api/v1/commands/valve/${SENSOR_ID}`, { command: 'open' }).catch(() => {});
+        // Abrir válvula (Actualmente no soportado)
+        try {
+          await commandService.abrirValvula(SENSOR_ID);
+          store.toggleValve();
+        } catch (error: any) {
+          Alert.alert('No soportado', error.message || 'La acción no está implementada en el backend actual.');
+        }
       }
-      store.toggleValve();
     } catch (error) {
       Alert.alert('Error', 'No se pudo comunicar con el sistema para cambiar el estado de la válvula.');
     }
@@ -97,11 +147,12 @@ export default function DashboardScreen() {
       return; 
     }
     
-    const newCommand = store.fanOn ? 'off' : 'on';
     try {
-      await api.post(`/api/v1/commands/dissipator/${SENSOR_ID}`, {
-        command: newCommand
-      });
+      if (store.fanOn) {
+        await commandService.apagarVentilador(SENSOR_ID);
+      } else {
+        await commandService.activarVentilador(SENSOR_ID);
+      }
       store.toggleFan();
     } catch (error: any) {
       if (error.response?.status === 423) {
@@ -118,8 +169,7 @@ export default function DashboardScreen() {
 
   const gasColor = store.alertLevel === 'critical' ? colors.danger : store.alertLevel === 'dangerous' ? colors.warning : colors.success;
   
-  // Si no está conectado, el color del gas se vuelve gris
-  const displayGasColor = store.isConnected ? gasColor : colors.textSecondary;
+  const displayGasColor = gasColor;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -136,27 +186,33 @@ export default function DashboardScreen() {
             <Ionicons name="notifications-outline" size={24} color={colors.text} />
             {store.isAlertActive && <View style={styles.notificationDot} />}
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => store.logout()} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={24} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* Status indicator row */}
+        <View style={styles.statusRow}>
           <View style={[styles.statusBadge, !store.isConnected && styles.statusBadgeOffline]}>
             <View style={[
               styles.statusDot, 
               { backgroundColor: !store.isConnected ? colors.textSecondary : store.isAlertActive ? colors.danger : colors.success }
             ]} />
             <Text style={styles.statusText}>
-              {!store.isConnected ? 'SIN CONEXIÓN' : store.isAlertActive ? 'ALERTA' : 'EN LÍNEA'}
+              {!store.isConnected ? 'SISTEMA DESCONECTADO' : store.isAlertActive ? 'ESTADO: ALERTA' : 'SISTEMA EN LÍNEA'}
             </Text>
           </View>
         </View>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
         {/* Main Gas Indicator */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>NIVEL DE GAS</Text>
           <View style={styles.gasIndicatorContainer}>
             <Text style={[styles.gasValue, { color: displayGasColor }]}>
-              {store.isConnected ? Math.round(store.sensorData?.gasPpm || 0) : '--'}
+              {Math.round(store.sensorData?.gasPpm || 0)}
             </Text>
             <Text style={styles.gasUnit}>PPM</Text>
           </View>
@@ -165,7 +221,7 @@ export default function DashboardScreen() {
             <Animated.View style={[
               styles.barFill, 
               { 
-                width: store.isConnected ? `${Math.min(100, ((store.sensorData?.gasPpm || 0) / 1000) * 100)}%` : '0%',
+                width: `${Math.min(100, ((store.sensorData?.gasPpm || 0) / 3000) * 100)}%`,
                 backgroundColor: displayGasColor 
               }
             ]} />
@@ -173,9 +229,9 @@ export default function DashboardScreen() {
           
           <Text style={styles.statusLabel}>
             {!store.isConnected ? 'ESPERANDO DATOS...' :
-             store.alertLevel === 'critical' ? 'CRÍTICO: RIESGO DE EXPLOSIÓN' : 
-             store.alertLevel === 'dangerous' ? 'PELIGROSO: FUGA DETECTADA' : 
-             'NIVELES NORMALES'}
+             store.alertLevel === 'critical' ? 'CRÍTICO: RIESGO ALTO DE EXPLOSIÓN' : 
+             store.alertLevel === 'dangerous' ? 'NIVEL MEDIO: PRECAUCIÓN' : 
+             'NIVEL NORMAL DE GAS'}
           </Text>
         </View>
 
@@ -192,12 +248,15 @@ export default function DashboardScreen() {
             <TouchableOpacity 
               style={[
                 styles.toggleButton, 
-                { backgroundColor: store.valveOpen ? colors.surfaceLight : colors.danger }
+                { 
+                  backgroundColor: store.valveOpen ? 'transparent' : '#EF4444',
+                  borderColor: store.valveOpen ? '#334155' : '#B91C1C'
+                }
               ]}
               onPress={handleToggleValve}
               disabled={!store.isConnected}
             >
-              <Text style={styles.toggleButtonText}>
+              <Text style={[styles.toggleButtonText, { color: store.valveOpen ? '#E2E8F0' : '#FFFFFF' }]}>
                 {store.valveOpen ? 'CERRAR' : 'ABRIR'}
               </Text>
             </TouchableOpacity>
@@ -210,24 +269,102 @@ export default function DashboardScreen() {
             <View style={styles.controlInfo}>
               <Text style={styles.controlTitle}>Sistema de Extracción</Text>
               <Text style={styles.controlSubtitle}>
-                {store.isAlertActive ? 'Bloqueado por alerta' : 'Control manual'}
+                {store.isAlertActive ? 'Bloqueado (Protocolo de Alerta)' : 'Control manual'}
               </Text>
             </View>
             <TouchableOpacity 
               style={[
                 styles.toggleButton, 
-                { backgroundColor: store.fanOn ? colors.primary : colors.surfaceLight },
+                { 
+                  backgroundColor: store.fanOn ? '#3B82F6' : 'transparent',
+                  borderColor: store.fanOn ? '#2563EB' : '#334155'
+                },
                 (store.isAlertActive || !store.isConnected) && styles.buttonDisabled
               ]}
               onPress={handleToggleFan}
               activeOpacity={store.isAlertActive ? 1 : 0.7}
               disabled={!store.isConnected}
             >
-              <Text style={[styles.toggleButtonText, store.fanOn && { color: colors.background }]}>
+              <Text style={[styles.toggleButtonText, { color: store.fanOn ? '#FFFFFF' : '#E2E8F0' }]}>
                 {store.fanOn ? 'ENCENDIDO' : 'APAGAR'}
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Readings History Chart */}
+        <Text style={styles.sectionTitle}>HISTORIAL (Gráfico en Vivo)</Text>
+        <View style={styles.card}>
+          {readingsHistory.length === 0 ? (
+            <Text style={styles.historyEmptyText}>Recopilando datos en tiempo real...</Text>
+          ) : (
+            <View style={{ height: 180, width: '100%', marginTop: 10 }}>
+              {(() => {
+                // Escala fija: 0 a 3000 para que 600 se vea abajo como normal
+                const maxPpm = 3000;
+                const minPpm = 0;
+                const range = maxPpm - minPpm;
+                
+                const width = 300; // Ancho base de referencia
+                const height = 140; // Alto
+                const padding = 10;
+                
+                const points = readingsHistory.map((r, i) => {
+                  const x = padding + (i / (readingsHistory.length - 1)) * (width - padding * 2);
+                  const y = height - padding - (((r.gas_ppm || 0) - minPpm) / range) * (height - padding * 2);
+                  return { x, y, value: r.gas_ppm || 0 };
+                });
+
+                const pathData = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+                
+                // Area base para gradiente
+                const areaData = `${pathData} L ${points[points.length-1].x} ${height} L ${points[0].x} ${height} Z`;
+
+                return (
+                  <View style={{ flex: 1, flexDirection: 'row' }}>
+                    {/* Y-Axis Labels */}
+                    <View style={{ width: 35, justifyContent: 'space-between', paddingVertical: padding }}>
+                      <Text style={{ color: '#8A94A6', fontSize: 10 }}>3000</Text>
+                      <Text style={{ color: '#8A94A6', fontSize: 10 }}>1500</Text>
+                      <Text style={{ color: '#8A94A6', fontSize: 10 }}>0</Text>
+                    </View>
+                    
+                    <View style={{ flex: 1 }}>
+                      <Svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
+                        <Defs>
+                          <LinearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
+                            <Stop offset="0" stopColor="#3B82F6" stopOpacity="0.4" />
+                            <Stop offset="1" stopColor="#3B82F6" stopOpacity="0.0" />
+                          </LinearGradient>
+                        </Defs>
+                        
+                        {/* Background Grid Lines */}
+                        {[0, 0.5, 1].map((ratio, i) => (
+                          <Path 
+                            key={`grid-${i}`}
+                            d={`M 0 ${height - padding - ratio * (height - padding * 2)} L ${width} ${height - padding - ratio * (height - padding * 2)}`} 
+                            stroke="#1A1D24" 
+                            strokeWidth="1" 
+                          />
+                        ))}
+
+                        <Polygon points={areaData.replace(/M|L|Z/g, '')} fill="url(#gradient)" />
+                        <Path d={pathData} fill="none" stroke="#3B82F6" strokeWidth="3" />
+                        
+                        {points.map((p, i) => (
+                          <Circle key={i} cx={p.x} cy={p.y} r="4" fill="#0F1115" stroke="#3B82F6" strokeWidth="2" />
+                        ))}
+                      </Svg>
+                    </View>
+                  </View>
+                );
+              })()}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, paddingLeft: 35 }}>
+                <Text style={{ color: '#8A94A6', fontSize: 10 }}>-20 seg</Text>
+                <Text style={{ color: '#3B82F6', fontSize: 10, fontWeight: '700' }}>AHORA</Text>
+              </View>
+            </View>
+          )}
         </View>
 
       </ScrollView>
@@ -251,29 +388,30 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#0F1115', // Más oscuro, industrial
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#1A1D24',
+    backgroundColor: '#14171C',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: -0.5,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
     fontSize: 10,
-    color: colors.textSecondary,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    marginTop: 4,
+    color: '#8A94A6',
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
@@ -283,6 +421,9 @@ const styles = StyleSheet.create({
     marginRight: 16,
     position: 'relative',
   },
+  logoutBtn: {
+    padding: 4,
+  },
   notificationDot: {
     position: 'absolute',
     top: 0,
@@ -290,54 +431,56 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: colors.danger,
-    borderWidth: 1,
-    borderColor: colors.background,
+    backgroundColor: '#EF4444',
+  },
+  statusRow: {
+    marginBottom: 20,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(12, 229, 110, 0.1)',
+    backgroundColor: '#14171C',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    paddingVertical: 8,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(12, 229, 110, 0.3)',
+    borderColor: '#1A1D24',
+    alignSelf: 'flex-start',
   },
   statusBadgeOffline: {
-    backgroundColor: 'rgba(160, 170, 191, 0.1)',
-    borderColor: 'rgba(160, 170, 191, 0.3)',
+    backgroundColor: '#1A1D24',
+    borderColor: '#2A2E37',
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
   },
   statusText: {
-    fontSize: 10,
-    color: colors.text,
-    fontWeight: '700',
-    letterSpacing: 1,
+    fontSize: 11,
+    color: '#E2E8F0',
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   scrollContent: {
-    padding: 24,
+    padding: 20,
     paddingBottom: 40,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 24,
+    backgroundColor: '#14171C',
+    borderRadius: 8,
+    padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#1A1D24',
   },
   cardTitle: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    marginBottom: 16,
+    fontSize: 12,
+    color: '#8A94A6',
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: 12,
   },
   gasIndicatorContainer: {
     flexDirection: 'row',
@@ -345,41 +488,42 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   gasValue: {
-    fontSize: 72,
-    fontWeight: '900',
-    letterSpacing: -3,
-    lineHeight: 80,
+    fontSize: 64,
+    fontWeight: '400',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: -2,
+    lineHeight: 70,
   },
   gasUnit: {
     fontSize: 16,
-    color: colors.textSecondary,
-    fontWeight: '700',
+    color: '#8A94A6',
+    fontWeight: '600',
     marginLeft: 8,
   },
   barBackground: {
-    height: 8,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 4,
+    height: 4,
+    backgroundColor: '#1A1D24',
+    borderRadius: 2,
     overflow: 'hidden',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   barFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 2,
   },
   statusLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: '#8A94A6',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   sectionTitle: {
     fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-    marginBottom: 16,
+    color: '#8A94A6',
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginBottom: 12,
     marginTop: 8,
   },
   controlRow: {
@@ -392,63 +536,66 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   controlTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#E2E8F0',
     marginBottom: 4,
   },
   controlSubtitle: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: '#8A94A6',
   },
   toggleButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     minWidth: 100,
+    borderWidth: 1,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   toggleButtonText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: 1,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   alertOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 51, 102, 0.15)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     pointerEvents: 'none',
     justifyContent: 'flex-start',
   },
   alertContent: {
-    backgroundColor: colors.danger,
-    marginTop: 100,
-    marginHorizontal: 24,
-    padding: 20,
-    borderRadius: 16,
+    backgroundColor: '#EF4444',
+    marginTop: 60,
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: 8,
     alignItems: 'center',
-    shadowColor: colors.danger,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#B91C1C',
   },
   alertTitle: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginBottom: 8,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   alertText: {
-    color: colors.text,
+    color: '#FFFFFF',
     fontSize: 13,
     textAlign: 'center',
     fontWeight: '500',
-    lineHeight: 20,
+    lineHeight: 18,
+  },
+  historyEmptyText: {
+    color: '#8A94A6',
+    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: 10,
   }
 });

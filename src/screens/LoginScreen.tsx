@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
+import { authService } from '../services/authService';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -32,7 +33,7 @@ export default function LoginScreen() {
     }).start();
   }, [fadeAnim]);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError('');
     if (!email || !password) {
       setError('Por favor, ingresa tus credenciales.');
@@ -41,15 +42,22 @@ export default function LoginScreen() {
 
     setLoading(true);
 
-    // Simulate network delay for premium feel
-    setTimeout(() => {
-      if (email.toLowerCase().trim() === 'gastio@admin.com' && password === 'admin123') {
-        login(email.toLowerCase().trim());
+    try {
+      const response = await authService.login(email.trim(), password);
+      if (response && response.access_token) {
+        login(response.user?.email || email.trim());
       } else {
-        setError('Credenciales inválidas. Solo personal autorizado.');
+        setError('Respuesta inesperada del servidor.');
         setLoading(false);
       }
-    }, 800);
+    } catch (err: any) {
+      if (err.response?.status === 401 || err.response?.status === 400 || err.response?.status === 404) {
+        setError('Credenciales inválidas. Solo personal autorizado.');
+      } else {
+        setError('Error al intentar conectar con el servidor.');
+      }
+      setLoading(false);
+    }
   };
 
   return (
@@ -118,110 +126,97 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#0F1115',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: 40,
   },
   logoDot: {
     width: 12,
     height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
+    borderRadius: 2,
+    backgroundColor: '#3B82F6',
     marginBottom: 16,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 5,
   },
   title: {
-    fontSize: 42,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: -1,
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   titleHighlight: {
-    color: colors.primary,
+    color: '#3B82F6',
   },
   subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
+    fontSize: 12,
+    color: '#8A94A6',
     marginTop: 8,
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   formContainer: {
-    backgroundColor: colors.surface,
-    padding: 32,
-    borderRadius: 24,
+    backgroundColor: '#14171C',
+    padding: 24,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 10,
+    borderColor: '#1A1D24',
   },
   errorText: {
-    color: colors.danger,
-    fontSize: 13,
+    color: '#EF4444',
+    fontSize: 12,
     marginBottom: 16,
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   inputWrapper: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   inputLabel: {
-    color: colors.textSecondary,
+    color: '#8A94A6',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     marginBottom: 8,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: colors.surfaceLight,
-    height: 56,
-    borderRadius: 12,
+    backgroundColor: '#1A1D24',
+    height: 48,
+    borderRadius: 6,
     paddingHorizontal: 16,
-    color: colors.text,
-    fontSize: 16,
+    color: '#E2E8F0',
+    fontSize: 15,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: '#2A2E37',
   },
   button: {
-    backgroundColor: colors.primary,
-    height: 56,
-    borderRadius: 12,
+    backgroundColor: '#3B82F6',
+    height: 48,
+    borderRadius: 6,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#2563EB',
   },
   buttonText: {
-    color: colors.background,
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 2,
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   footer: {
-    paddingBottom: 40,
+    paddingBottom: 30,
     alignItems: 'center',
   },
   footerText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    opacity: 0.5,
+    color: '#8A94A6',
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
 });
