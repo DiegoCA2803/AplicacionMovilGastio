@@ -1,7 +1,6 @@
 import api from './api';
 
 export const sensorService = {
-  // Obtiene la lista completa de todos los sensores registrados en el sistema.
   getSensors: async () => {
     try {
       const response = await api.get('/sensors');
@@ -10,8 +9,7 @@ export const sensorService = {
       throw error;
     }
   },
-  
-  // Obtiene todos los detalles de configuración y estado de un sensor en particular.
+
   getSensorDetails: async (sensorId: string) => {
     try {
       const response = await api.get(`/sensors/${sensorId}`);
@@ -21,7 +19,6 @@ export const sensorService = {
     }
   },
 
-  // Consulta el nivel actual de gas (PPM), temperatura y humedad del sensor.
   getCurrentReading: async (sensorId: string) => {
     try {
       const response = await api.get(`/sensors/${sensorId}/current`);
@@ -31,7 +28,6 @@ export const sensorService = {
     }
   },
 
-  // Verifica la "salud" del sensor (si está online, atascado, señal WiFi, etc.)
   getHealth: async (sensorId: string) => {
     try {
       const response = await api.get(`/sensors/${sensorId}/health`);
@@ -41,11 +37,12 @@ export const sensorService = {
     }
   },
 
-  // Obtiene el historial de lecturas (limitado a 'limit' registros).
-  getReadingsHistory: async (sensorId: string, limit: number = 10) => {
+  getReadingsHistory: async (sensorId: string, limit: number = 20) => {
     try {
-      const response = await api.get(`/sensors/${sensorId}/readings?limit=${limit}`);
-      return response.data; // Devuelve un objeto con { sensor_id, device_id, readings: [...] }
+      const start = '2020-01-01T00:00:00';
+      const end = '2030-01-01T00:00:00';
+      const response = await api.get(`/sensors/${sensorId}/readings?start=${start}&end=${end}&limit=${limit}`);
+      return response.data; 
     } catch (error) {
       throw error;
     }

@@ -108,11 +108,9 @@ export default function DashboardScreen() {
   const handleToggleValve = async () => {
     try {
       if (store.valveOpen) {
-        // Cerrar válvula
         await commandService.cerrarValvula(SENSOR_ID);
         store.toggleValve();
       } else {
-        // Abrir válvula (Actualmente no soportado)
         try {
           await commandService.abrirValvula(SENSOR_ID);
           store.toggleValve();
@@ -284,13 +282,12 @@ export default function DashboardScreen() {
           ) : (
             <View style={{ height: 180, width: '100%', marginTop: 10 }}>
               {(() => {
-                // Escala fija: 0 a 3000 para que 600 se vea abajo como normal
                 const maxPpm = 3000;
                 const minPpm = 0;
                 const range = maxPpm - minPpm;
                 
-                const width = 300; // Ancho base de referencia
-                const height = 140; // Alto
+                const width = 300; 
+                const height = 140; 
                 const padding = 10;
                 
                 const points = readingsHistory.map((r, i) => {
@@ -301,7 +298,6 @@ export default function DashboardScreen() {
 
                 const pathData = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
                 
-                // Area base para gradiente
                 const areaData = `${pathData} L ${points[points.length-1].x} ${height} L ${points[0].x} ${height} Z`;
 
                 return (

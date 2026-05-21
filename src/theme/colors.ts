@@ -2,7 +2,7 @@ export const colors = {
   background: '#0B0D12',
   surface: '#151821',
   surfaceLight: '#212634',
-  primary: '#0CE56E', // Gastio Green
+  primary: '#0CE56E',
   primaryDark: '#08994A',
   text: '#F1F3F5',
   textSecondary: '#A0AABF',
