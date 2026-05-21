@@ -51,10 +51,16 @@ export default function LoginScreen() {
         setLoading(false);
       }
     } catch (err: any) {
-      if (err.response?.status === 401 || err.response?.status === 400 || err.response?.status === 404) {
-        setError('Credenciales inválidas. Solo personal autorizado.');
+      if (err.response) {
+        if (err.response.status === 401 || err.response.status === 422) {
+          setError('Contraseña incorrecta o usuario inválido.');
+        } else if (err.response.status === 404) {
+          setError('El usuario no existe.');
+        } else {
+          setError(`Error del servidor (${err.response.status}). Intente más tarde.`);
+        }
       } else {
-        setError('Error al intentar conectar con el servidor.');
+        setError('No se pudo conectar con el servidor. Verifique su internet.');
       }
       setLoading(false);
     }

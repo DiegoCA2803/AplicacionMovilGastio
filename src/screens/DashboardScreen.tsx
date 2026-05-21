@@ -19,7 +19,6 @@ import { sensorService } from '../services/sensorService';
 import { commandService } from '../services/commandService';
 import { dateFormatter } from '../utils/dateFormatter';
 
-// Este ID se obtendrá dinámicamente de la API
 let SENSOR_ID = '';
 
 export default function DashboardScreen() {
@@ -30,7 +29,6 @@ export default function DashboardScreen() {
 
   const fetchSensorData = useCallback(async () => {
     try {
-      // 0. Si no tenemos el SENSOR_ID, lo buscamos de la lista
       if (!SENSOR_ID) {
         const sensors = await sensorService.getSensors();
         if (sensors && sensors.length > 0) {
@@ -43,7 +41,6 @@ export default function DashboardScreen() {
 
       let isActuallyConnected = false;
 
-      // 1. Verificamos la salud del sensor
       try {
         const healthResponse = await sensorService.getHealth(SENSOR_ID);
         if (healthResponse?.health_status) {
@@ -52,11 +49,7 @@ export default function DashboardScreen() {
       } catch (healthError) {
          isActuallyConnected = false;
       }
-
-      // Evitamos actualizaciones de estado si ya sabíamos que estaba desconectado y falló la API
-      // Pero si falla solo la conexión MQTT, igual queremos traer el historial.
       
-      // 2. Intentamos obtener los datos del sensor
       try {
         const data = await sensorService.getCurrentReading(SENSOR_ID);
         if (data && data.reading) {
@@ -66,17 +59,13 @@ export default function DashboardScreen() {
             humidity: data.reading.humidity_percent || 0,
           });
         }
-      } catch (sensorError) {
-        // Ignoramos si no hay lectura actual
-      }
+      } catch (sensorError) {}
 
-      // 3. Obtenemos el historial de lecturas y forzamos la actualización
       try {
         const historyData = await sensorService.getReadingsHistory(SENSOR_ID, 10);
         if (historyData && historyData.readings && historyData.readings.length > 0) {
-          setReadingsHistory(historyData.readings.reverse()); // Reverse para que el último dato quede a la derecha del gráfico
+          setReadingsHistory(historyData.readings.reverse()); 
           
-          // Si el endpoint de current falló, tomamos el valor del historial más reciente
           const latest = historyData.readings[historyData.readings.length - 1];
           if (latest) {
             store.updateSensorData({
@@ -86,16 +75,11 @@ export default function DashboardScreen() {
             });
           }
         }
-      } catch (historyError) {
-        // Silencioso si falla el historial
-      }
+      } catch (historyError) {}
 
-      // 4. Actualizamos el estado de conexión al final para evitar parpadeos visuales (flickering)
       store.setConnectionStatus(isActuallyConnected);
 
-    } catch (error) {
-      // Ignorar para no bloquear la UI
-    }
+    } catch (error) {}
   }, [store]);
 
   useEffect(() => {
