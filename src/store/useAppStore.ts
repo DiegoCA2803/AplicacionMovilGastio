@@ -9,6 +9,7 @@ interface SensorData {
 interface AppState {
   isAuthenticated: boolean;
   user: { email: string } | null;
+  token: string | null;
   sensorData: SensorData | null;
   valveOpen: boolean;
   fanOn: boolean;
@@ -16,17 +17,20 @@ interface AppState {
   alertLevel: 'none' | 'dangerous' | 'critical';
   isConnected: boolean;
   
-  login: (email: string) => void;
+  login: (email: string, token: string) => void;
   logout: () => void;
   updateSensorData: (data: SensorData) => void;
   setConnectionStatus: (status: boolean) => void;
   toggleValve: () => void;
   toggleFan: () => void;
+  setValveOpen: (open: boolean) => void;
+  setFanOn: (on: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   isAuthenticated: false,
   user: null,
+  token: null,
   sensorData: { gasPpm: 0, temperature: 0, humidity: 0 },
   valveOpen: true,
   fanOn: false,
@@ -34,8 +38,8 @@ export const useAppStore = create<AppState>((set) => ({
   alertLevel: 'none',
   isConnected: false,
 
-  login: (email) => set({ isAuthenticated: true, user: { email } }),
-  logout: () => set({ isAuthenticated: false, user: null }),
+  login: (email, token) => set({ isAuthenticated: true, user: { email }, token }),
+  logout: () => set({ isAuthenticated: false, user: null, token: null }),
   
   setConnectionStatus: (status) => set({ isConnected: status }),
   
@@ -73,4 +77,6 @@ export const useAppStore = create<AppState>((set) => ({
     }
     return { fanOn: !state.fanOn };
   }),
+  setValveOpen: (open) => set({ valveOpen: open }),
+  setFanOn: (on) => set({ fanOn: on }),
 }));

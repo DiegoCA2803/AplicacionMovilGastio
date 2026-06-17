@@ -8,8 +8,14 @@ import {
   StatusBar,
   Animated,
   Alert,
-  Platform
+  Platform,
+  LogBox
 } from 'react-native';
+
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications',
+  'Must use physical device',
+]);
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Defs, LinearGradient, Stop, Polygon } from 'react-native-svg';
@@ -17,70 +23,261 @@ import { colors } from '../theme/colors';
 import { useAppStore } from '../store/useAppStore';
 import { sensorService } from '../services/sensorService';
 import { commandService } from '../services/commandService';
+import { alertService } from '../services/alertService';
 import { dateFormatter } from '../utils/dateFormatter';
+import api from '../services/api';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 let SENSOR_ID = '';
+
+async function registerForPushNotificationsAsync() {
+  let token;
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
+    });
+  }
+
+  if (Device.isDevice) {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') {
+      console.log('Failed to get push token for push notifications!');
+      return;
+    }
+    
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+      
+    if (!projectId) {
+      console.warn('Project ID not found in Expo configuration.');
+      return;
+    }
+
+    try {
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      console.log('Expo Push Token:', token);
+    } catch (e) {
+      console.error('Error fetching Expo Push Token:', e);
+    }
+  } else {
+    console.log('Must use physical device for Push Notifications');
+  }
+
+  return token;
+}
+
+function getFriendlyErrorMessage(error: any): string {
+  if (error?.response) {
+    const status = error.response.status;
+    if (status === 403) {
+      return 'No tienes permisos para ver este sensor (Error 403).';
+    }
+    if (status === 429) {
+      return 'Límite de peticiones excedido (Error 429). Espera 1 minuto.';
+    }
+    if (status === 404) {
+      return 'Sensor no encontrado (Error 404).';
+    }
+    if (status === 401) {
+      return 'Sesión vencida o inválida (Error 401).';
+    }
+    return `Error del servidor: Código ${status}`;
+  }
+  return error?.message || 'Error de conexión con el servidor.';
+}
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const store = useAppStore();
   const alertAnim = React.useRef(new Animated.Value(0)).current;
   const [readingsHistory, setReadingsHistory] = useState<any[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const lastValveToggleTime = React.useRef<number>(0);
+  const lastFanToggleTime = React.useRef<number>(0);
+  const historyFetched = React.useRef<boolean>(false);
+
+  useEffect(() => {
+    async function setupNotifications() {
+      const token = await registerForPushNotificationsAsync();
+      if (token) {
+        try {
+          await api.post('/notifications/push/register', {
+            token: token,
+            platform: Platform.OS
+          });
+          console.log('Push token registered successfully.');
+        } catch (error) {
+          console.error('Failed to register push token:', error);
+        }
+      }
+    }
+    setupNotifications();
+
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received in foreground:', notification);
+    });
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification response received:', response);
+    });
+
+    return () => {
+      notificationListener.remove();
+      responseListener.remove();
+    };
+  }, []);
 
   const fetchSensorData = useCallback(async () => {
     try {
       if (!SENSOR_ID) {
+        console.log('[API] Fetching sensors...');
         const sensors = await sensorService.getSensors();
+        console.log('[API] Sensors response:', sensors);
         if (sensors && sensors.length > 0) {
           SENSOR_ID = sensors[0].id;
+          console.log('[API] Selected SENSOR_ID:', SENSOR_ID);
+          setApiError(null);
         } else {
-          store.setConnectionStatus(false);
+          console.log('[API] No sensors found in getSensors response.');
+          setApiError('No se encontraron sensores registrados.');
+          useAppStore.getState().setConnectionStatus(false);
           return;
         }
       }
 
       let isActuallyConnected = false;
+      let latestGas = 0;
 
+      // 1. Fetch latest reading & check connection status
       try {
-        const healthResponse = await sensorService.getHealth(SENSOR_ID);
-        if (healthResponse?.health_status) {
-          isActuallyConnected = healthResponse.diagnostics?.mqtt_connected ?? true;
-        }
-      } catch (healthError) {
-         isActuallyConnected = false;
-      }
-      
-      try {
+        console.log('[API] Fetching latest-gas for SENSOR_ID:', SENSOR_ID);
         const data = await sensorService.getCurrentReading(SENSOR_ID);
-        if (data && data.reading) {
-          store.updateSensorData({
-            gasPpm: data.reading.gas_ppm || 0,
-            temperature: data.reading.temperature_c || 0,
-            humidity: data.reading.humidity_percent || 0,
-          });
-        }
-      } catch (sensorError) {}
-
-      try {
-        const historyData = await sensorService.getReadingsHistory(SENSOR_ID, 10);
-        if (historyData && historyData.readings && historyData.readings.length > 0) {
-          setReadingsHistory(historyData.readings.reverse()); 
+        console.log('[API] latest-gas response:', data);
+        if (data) {
+          latestGas = data.gas_ppm || 0;
+          isActuallyConnected = data.status === 'CONECTADO';
           
-          const latest = historyData.readings[historyData.readings.length - 1];
-          if (latest) {
-            store.updateSensorData({
-              gasPpm: latest.gas_ppm || latest.gas || 0,
-              temperature: latest.temperature_c || 0,
-              humidity: latest.humidity_percent || 0,
-            });
+          if (isActuallyConnected && data.timestamp) {
+            const utcString = data.timestamp.endsWith('Z') || data.timestamp.includes('+') ? data.timestamp : `${data.timestamp}Z`;
+            const lastReadingTime = new Date(utcString).getTime();
+            const nowTime = Date.now();
+            const differenceSeconds = (nowTime - lastReadingTime) / 1000;
+            
+            if (differenceSeconds > 15) {
+              isActuallyConnected = false;
+              setApiError(`Sensor inactivo (último dato hace ${Math.round(differenceSeconds)}s)`);
+            } else {
+              setApiError(null);
+            }
+          } else if (!isActuallyConnected) {
+            setApiError(`Sensor reporta estado: ${data.status}`);
+          } else {
+            setApiError(null);
           }
         }
-      } catch (historyError) {}
+      } catch (sensorError: any) {
+        console.error('[API] getCurrentReading error:', sensorError?.message || sensorError);
+        setApiError(getFriendlyErrorMessage(sensorError));
+      }
 
-      store.setConnectionStatus(isActuallyConnected);
+      const state = useAppStore.getState();
 
-    } catch (error) {}
-  }, [store]);
+      // 2. Fetch sensor details for actuator status
+      try {
+        console.log('[API] Fetching sensor details for SENSOR_ID:', SENSOR_ID);
+        const details = await sensorService.getSensorDetails(SENSOR_ID);
+        if (details) {
+          const nowTime = Date.now();
+          // Only update valveOpen from backend if it hasn't been toggled manually in the last 6 seconds
+          if (nowTime - lastValveToggleTime.current > 6000) {
+            if (details.valve) {
+              const isValveOpen = details.valve.state?.toLowerCase() === 'open';
+              state.setValveOpen(isValveOpen);
+            }
+          }
+          // Only update fanOn from backend if it hasn't been toggled manually in the last 6 seconds
+          if (nowTime - lastFanToggleTime.current > 6000) {
+            if (details.dissipator) {
+              const isFanOn = details.dissipator.state?.toLowerCase() === 'on';
+              state.setFanOn(isFanOn);
+            }
+          }
+        }
+      } catch (detailsError: any) {
+        console.error('[API] Error fetching sensor details:', detailsError?.message || detailsError);
+      }
+
+      // 3. Fetch readings history once on startup/initial load, then append locally
+      if (!historyFetched.current) {
+        try {
+          console.log('[API] Initial fetch: readings history for SENSOR_ID:', SENSOR_ID);
+          const historyData = await sensorService.getReadingsHistory(SENSOR_ID, 10);
+          
+          if (historyData && historyData.readings && historyData.readings.length > 0) {
+            setReadingsHistory(historyData.readings.reverse()); 
+            historyFetched.current = true;
+            const latest = historyData.readings[historyData.readings.length - 1];
+            if (latest) {
+              state.updateSensorData({
+                gasPpm: latestGas || latest.gas_ppm || latest.gas || 0,
+                temperature: latest.temperature_c || 0,
+                humidity: latest.humidity_percent || 0,
+              });
+            }
+          } else {
+            state.updateSensorData({
+              gasPpm: latestGas,
+              temperature: state.sensorData?.temperature || 0,
+              humidity: state.sensorData?.humidity || 0,
+            });
+          }
+        } catch (historyError: any) {
+          console.error('[API] Initial history fetch error:', historyError?.message || historyError);
+        }
+      } else {
+        // Update store with latest real-time reading and append locally to readingsHistory
+        state.updateSensorData({
+          gasPpm: latestGas,
+          temperature: state.sensorData?.temperature || 0,
+          humidity: state.sensorData?.humidity || 0,
+        });
+
+        setReadingsHistory((prev) => {
+          const newReading = { gas_ppm: latestGas, created_at: new Date().toISOString() };
+          if (prev.length === 0) return [newReading];
+          return [...prev, newReading].slice(-10);
+        });
+      }
+
+      state.setConnectionStatus(isActuallyConnected);
+
+    } catch (error: any) {
+      console.error('[API] fetchSensorData outer error:', error?.message || error);
+      setApiError(getFriendlyErrorMessage(error));
+      useAppStore.getState().setConnectionStatus(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchSensorData(); 
@@ -106,20 +303,32 @@ export default function DashboardScreen() {
   }, [store.isAlertActive, alertAnim]);
 
   const handleToggleValve = async () => {
+    const nextState = !store.valveOpen;
+    lastValveToggleTime.current = Date.now();
+    store.setValveOpen(nextState); // Optimistic Update
+
     try {
-      if (store.valveOpen) {
+      if (nextState === false) { // Closing
         await commandService.cerrarValvula(SENSOR_ID);
-        store.toggleValve();
-      } else {
+      } else { // Opening
         try {
           await commandService.abrirValvula(SENSOR_ID);
-          store.toggleValve();
         } catch (error: any) {
-          Alert.alert('No soportado', error.message || 'La acción no está implementada en el backend actual.');
+          // Revert optimistic update
+          store.setValveOpen(!nextState);
+          lastValveToggleTime.current = 0;
+          const detail = error.response?.data?.detail || error.message || 'La acción no está implementada en el backend actual.';
+          Alert.alert('No soportado', detail);
+          return;
         }
       }
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo comunicar con el sistema para cambiar el estado de la válvula.');
+    } catch (error: any) {
+      // Revert optimistic update
+      store.setValveOpen(!nextState);
+      lastValveToggleTime.current = 0;
+      console.error('[API] error controlando valvula:', error?.response?.data || error);
+      const detail = error.response?.data?.detail || error.message || 'Error de conexión.';
+      Alert.alert('Error', `No se pudo comunicar con el sistema para cambiar el estado de la válvula: ${detail}`);
     }
   };
 
@@ -129,24 +338,28 @@ export default function DashboardScreen() {
       return; 
     }
     
+    const nextState = !store.fanOn;
+    lastFanToggleTime.current = Date.now();
+    store.setFanOn(nextState); // Optimistic Update
+
     try {
-      if (store.fanOn) {
+      if (nextState === false) { // Turning off
         await commandService.apagarVentilador(SENSOR_ID);
-      } else {
+      } else { // Turning on
         await commandService.activarVentilador(SENSOR_ID);
       }
-      store.toggleFan();
     } catch (error: any) {
+      // Revert optimistic update
+      store.setFanOn(!nextState);
+      lastFanToggleTime.current = 0;
+      console.error('[API] error controlando extractor:', error?.response?.data || error);
+      const detail = error.response?.data?.detail || error.message || 'Error de conexión.';
       if (error.response?.status === 423) {
         Alert.alert('Bloqueado', 'El sistema bloqueó la acción. El disipador está asegurado por protocolo de emergencia.');
       } else {
-        Alert.alert('Error', 'No se pudo enviar el comando al disipador.');
+        Alert.alert('Error', `No se pudo enviar el comando al disipador: ${detail}`);
       }
     }
-  };
-
-  const showNotifications = () => {
-    Alert.alert('Notificaciones', 'No tienes nuevas alertas en este momento.');
   };
 
   const gasColor = store.alertLevel === 'critical' ? colors.danger : store.alertLevel === 'dangerous' ? colors.warning : colors.success;
@@ -164,10 +377,6 @@ export default function DashboardScreen() {
           <Text style={styles.headerSubtitle}>MONITOREO EN TIEMPO REAL</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={showNotifications} style={styles.notificationBtn}>
-            <Ionicons name="notifications-outline" size={24} color={colors.text} />
-            {store.isAlertActive && <View style={styles.notificationDot} />}
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => store.logout()} style={styles.logoutBtn}>
             <Ionicons name="log-out-outline" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
@@ -210,7 +419,7 @@ export default function DashboardScreen() {
           </View>
           
           <Text style={styles.statusLabel}>
-            {!store.isConnected ? 'ESPERANDO DATOS...' :
+            {!store.isConnected ? (apiError || 'ESPERANDO DATOS...') :
              store.alertLevel === 'critical' ? 'CRÍTICO: RIESGO ALTO DE EXPLOSIÓN' : 
              store.alertLevel === 'dangerous' ? 'NIVEL MEDIO: PRECAUCIÓN' : 
              'NIVEL NORMAL DE GAS'}
@@ -268,7 +477,7 @@ export default function DashboardScreen() {
               disabled={!store.isConnected}
             >
               <Text style={[styles.toggleButtonText, { color: store.fanOn ? '#FFFFFF' : '#E2E8F0' }]}>
-                {store.fanOn ? 'ENCENDIDO' : 'APAGAR'}
+                {store.fanOn ? 'APAGAR' : 'ENCENDER'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -291,7 +500,8 @@ export default function DashboardScreen() {
                 const padding = 10;
                 
                 const points = readingsHistory.map((r, i) => {
-                  const x = padding + (i / (readingsHistory.length - 1)) * (width - padding * 2);
+                  const divisor = readingsHistory.length > 1 ? readingsHistory.length - 1 : 1;
+                  const x = padding + (i / divisor) * (width - padding * 2);
                   const y = height - padding - (((r.gas_ppm || 0) - minPpm) / range) * (height - padding * 2);
                   return { x, y, value: r.gas_ppm || 0 };
                 });

@@ -45,7 +45,7 @@ export default function LoginScreen() {
     try {
       const response = await authService.login(email.trim(), password);
       if (response && response.access_token) {
-        login(response.user?.email || email.trim());
+        login(response.user?.email || email.trim(), response.access_token);
       } else {
         setError('Respuesta inesperada del servidor.');
         setLoading(false);
@@ -121,10 +121,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </Animated.View>
-      
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Acceso Restringido • Solo Operadores</Text>
-      </View>
     </KeyboardAvoidingView>
   );
 }

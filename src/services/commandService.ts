@@ -2,18 +2,18 @@ import api from './api';
 
 export const commandService = {
   cerrarValvula: async (sensorId: string) => {
-    return api.post(`/sensors/${sensorId}/commands`, { command: 'VALVE_CLOSE' });
+    return api.post(`/commands/valve/${sensorId}`, { command: 'close' });
   },
 
   abrirValvula: async (sensorId: string) => {
-    return api.post(`/sensors/${sensorId}/commands`, { command: 'VALVE_OPEN' });
+    return api.post(`/commands/valve/${sensorId}`, { command: 'open' });
   },
 
   activarVentilador: async (sensorId: string) => {
-    return api.post(`/sensors/${sensorId}/commands`, { command: 'FAN_ON' });
+    return api.post(`/commands/dissipator/${sensorId}`, { command: 'on' });
   },
 
   apagarVentilador: async (sensorId: string) => {
-    return api.post(`/sensors/${sensorId}/commands`, { command: 'FAN_OFF' });
+    return api.post(`/commands/dissipator/${sensorId}`, { command: 'off' });
   },
 };

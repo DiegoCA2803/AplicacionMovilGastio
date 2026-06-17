@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "397887727872",
+    "project_id": "gastio-os",
+    "storage_bucket": "gastio-os.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:397887727872:android:1ec5fd17aadf7c9af6ebe5",
+        "android_client_info": {
+          "package_name": "com.tlexxs.AppGastio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDwe5Fg8Y4UY23p83qGi4nNW59weQzes1Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

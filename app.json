@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -22,15 +22,23 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.tlexxs.AppGastio"
+      "package": "com.tlexxs.AppGastio",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#10B981"
     },
     "extra": {
       "eas": {
         "projectId": "c9f61f68-29e6-4db0-8b12-a90b5982ad90"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

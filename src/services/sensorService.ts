@@ -21,7 +21,7 @@ export const sensorService = {
 
   getCurrentReading: async (sensorId: string) => {
     try {
-      const response = await api.get(`/sensors/${sensorId}/current`);
+      const response = await api.get(`/sensors/${sensorId}/latest-gas`);
       return response.data;
     } catch (error) {
       throw error;
